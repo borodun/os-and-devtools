@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+REQUIRED = ["SERVER_NAME", "PORT", "MAX_PLAYERS", "SPAWN"]
+WORLD_FILES = [
+    "data/world.dat",
+    "data/maps/dungeon.dat",
+    "data/playerdata/saves.dat",
+    "data/plugins/antigrief.cfg",
+]
+
+
+def parse_conf(path):
+    conf = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                conf[key.strip()] = value.strip()
+    except OSError as e:
+        die([f"cannot read config {path}: {e}"])
+    return conf
+
+
+def die(errors):
+    for e in errors:
+        print(f"mcserver: {e}", file=sys.stderr)
+    print("mcserver: startup FAILED", file=sys.stderr)
+    sys.exit(1)
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) != 2 or args[0] != "--conf":
+        print("usage: mcserver --conf FILE", file=sys.stderr)
+        sys.exit(1)
+    conf_path = args[1]
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    conf = parse_conf(conf_path)
+    errors = []
+    for key in REQUIRED:
+        if key not in conf:
+            errors.append(f"config: missing key {key}")
+
+    name = conf.get("SERVER_NAME", "")
+    if "SERVER_NAME" in conf and not name:
+        errors.append("config: SERVER_NAME is empty")
+
+    port = None
+    if "PORT" in conf:
+        try:
+            port = int(conf["PORT"])
+            if not (1024 <= port <= 65535):
+                errors.append(f"config: PORT {port} out of range 1024-65535")
+        except ValueError:
+            errors.append(f"config: PORT '{conf['PORT']}' is not an integer")
+
+    if "MAX_PLAYERS" in conf:
+        try:
+            mp = int(conf["MAX_PLAYERS"])
+            if mp <= 0:
+                errors.append(f"config: MAX_PLAYERS {mp} must be positive")
+        except ValueError:
+            errors.append(f"config: MAX_PLAYERS '{conf['MAX_PLAYERS']}' is not an integer")
+
+    if "SPAWN" in conf:
+        parts = conf["SPAWN"].split()
+        try:
+            coords = [int(p) for p in parts]
+            if len(coords) != 3:
+                errors.append(f"config: SPAWN needs 3 integers, got {len(parts)}")
+        except ValueError:
+            errors.append(f"config: SPAWN '{conf['SPAWN']}' must be 3 integers")
+
+    for wf in WORLD_FILES:
+        if not os.path.exists(os.path.join(root, wf)):
+            errors.append(f"world file missing: {wf}")
+
+    if errors:
+        die(errors)
+
+    marker = os.path.join(root, "server-started.ok")
+    with open(marker, "w", encoding="utf-8") as f:
+        f.write(f"OK {name} {port}\n")
+    print(f"Server '{name}' started. Port: {port}")
+    print("Server started successfully.")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
