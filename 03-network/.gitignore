@@ -1,0 +1,6 @@
+compose.yaml
+flags.txt
+.hints
+__pycache__/
+solution/
+TASKS.md
